@@ -1,6 +1,13 @@
 <?php
 //ajax functions
 
+//geocode log
+add_action('wp_ajax_tsml_geocode_log', function () {
+	echo '<pre>';
+	print_r(get_option('tsml_geocode_log', []));
+	exit;
+});
+
 //delete all meetings and locations
 add_action('wp_ajax_tsml_delete', function () {
 	tsml_delete('everything');

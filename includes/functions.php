@@ -644,6 +644,11 @@ function tsml_geocode_google($address, $tsml_map_key)
 	}
 	curl_setopt($tsml_curl_handle, CURLOPT_RETURNTRANSFER, true);
 
+	//log to cache
+	$log = get_option('tsml_geocode_log', []);
+	$log[] = current_time('Y-m-d H:m') . ' -- ' . $address;
+	update_option('tsml_geocode_log', $log);
+
 	$result = curl_exec($tsml_curl_handle);
 
 	//could not connect error
