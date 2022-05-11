@@ -6,6 +6,8 @@
 <pre>
 <?php
 $url = 'https://padistrict42.org/wp-admin/admin-ajax.php?action=meetings&key=854aec833cc75bb085e64a72b899a2bb';
+$url_esc = trim(esc_url_raw($url, ['http', 'https']));
+echo($url_esc);
 $response = wp_remote_get($url, ['timeout' => 30, 'sslverify' => false]);
 $body = $response['body'];
 echo ("RAW:\n\n");
