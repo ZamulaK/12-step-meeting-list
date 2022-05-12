@@ -58,7 +58,7 @@ if ($url !=  '') {
     <div class="container page">
       <div class="row">
         <div class="col-md-12">
-          <p class="lead" style="font-weight:350">Use this validator to check if a JSON is valid and visible to the Area 59 website.</p>
+          <p class="lead" style="font-weight:350">Use this validator to check if a JSON is valid and visible to the <span style="font-weight:450">Area 59</span> website.</p>
           <p zoompage-fontsize="17">For more info on the Meeting Guide API, check out the <a href="https://github.com/meeting-guide/spec" zoompage-fontsize="17">specification</a>.</p>
           <form action="/jsonvalidate" method="get">
             <div class="input-group">
