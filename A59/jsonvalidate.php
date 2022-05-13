@@ -52,7 +52,7 @@ function csv_json($arr)
 function mtgtypes_json($v)
 {
   $types = [];
-  foreach (explode(",", $v) as $t) array_push($types, $t);
+  foreach (explode(",", $v) as $t) array_push($types, trim($t));
   return $types;
 }
 
