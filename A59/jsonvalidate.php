@@ -10,13 +10,10 @@ $count = ($url != '') ? 0 : -1;
 
 if ($url != '') {
   $resp = wp_remote_get($url, ['timeout' => 10, 'sslverify' => false]);
-  if (!is_array($resp)) {
-    $msg = 'INVALID response returned by feed.';
+  if (!is_array($resp) || empty($resp['body'])) {
+    $msg = 'INCOMPLETE response returned by feed.';
     $err = $resp;
-  } else if (empty($resp['body'])) {
-    $msg = 'EMPTY response returned by feed.';
-    $err = $resp;
-  } else if (str_ends_with($url, "format=csv") && ($json = csv_json($resp['body']))) {
+  }  else if (str_ends_with($url, "format=csv") && ($json = csv_json($resp['body']))) {
     if (array_key_exists('slug', $json[0]) || array_key_exists('Slug', $json[0])) {
       $count = count($json);
     } else if (count($json) > 1) {
@@ -30,11 +27,11 @@ if ($url != '') {
     if (array_key_exists('slug', $json[0])) {
       $count = count($json);
     } else {
-      $msg = 'Response Code <b>' .  http_response_code() . '</b> | ' . $json['error'];
+      $msg = 'INVALID Response Data: <b>' .  http_response_code() . '</b> | ' . $json['error'];
       $err = $resp;
     }
   } else {
-    $msg = 'JSON Error <b>' . json_last_error() . '</b> | ' . json_last_error_msg();
+    $msg = 'JSON Error: <b>' . json_last_error() . '</b> | ' . json_last_error_msg();
     $err = trim(htmlspecialchars($resp['body']));
   }
 }
