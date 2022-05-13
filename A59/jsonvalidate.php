@@ -9,11 +9,11 @@ if (preg_match('/^\s*http.{1,5}\/\/[a-z0-9]{0,10}.?area59aa\.org/i', $url)) $url
 $count = ($url != '') ? 0 : -1;
 
 if ($url != '') {
-  $resp = wp_remote_get($url, ['timeout' => 10, 'sslverify' => false]);
+  $resp = wp_remote_get($url, ['timeout' => 30, 'sslverify' => false]);
   if (!is_array($resp) || empty($resp['body'])) {
     $msg = 'INCOMPLETE response returned by feed.';
     $err = $resp;
-  }  else if (str_ends_with($url, "format=csv") && ($json = csv_json($resp['body']))) {
+  }  else if (preg_match('/google.+export.+format=csv/i', $url) && ($json = csv_json($resp['body']))) {
     if (array_key_exists('slug', $json[0]) || array_key_exists('Slug', $json[0])) {
       $count = count($json);
     } else if (count($json) > 1) {
