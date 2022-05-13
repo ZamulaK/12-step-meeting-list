@@ -42,18 +42,14 @@ function csv_json($arr)
   $h = str_getcsv(array_shift($csv));
   $data = array_map(fn ($r) => array_combine($h, str_getcsv($r)), $csv);
   $json = json_decode(json_encode($data, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_IGNORE), true);
-  foreach ($json as $k => $v) {
-    if (array_key_exists('types', $json[$k])) $json[$k]['types'] = mtgtypes_json($v['types']);
-    else if (array_key_exists('Types', $json[$k])) $json[$k]['Types'] = mtgtypes_json($v['Types']);
+  foreach ($json as &$j) {
+    foreach (array_filter(['Types', 'types'], fn ($x) =>  array_key_exists($x, $j)) as $t) {
+      $types = [];
+      foreach (explode(",", $j[$t]) as $x) array_push($types, trim($x));
+      $j[$t] = $types;
+    }
   }
   return $json;
-}
-
-function mtgtypes_json($v)
-{
-  $types = [];
-  foreach (explode(",", $v) as $t) array_push($types, trim($t));
-  return $types;
 }
 
 ?>
