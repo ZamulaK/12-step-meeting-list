@@ -13,7 +13,7 @@ if ($url != '') {
   if (!is_array($resp) || empty($resp['body'])) {
     $msg = 'INCOMPLETE response returned by feed.';
     $err = $resp;
-  }  else if (preg_match('/google.+export.+format=csv/i', $url) && ($json = csv_json($resp['body']))) {
+  } else if (preg_match('/google.+export.+format=csv/i', $url) && ($json = csv_json($resp['body']))) {
     if (array_key_exists('slug', $json[0]) || array_key_exists('Slug', $json[0])) {
       $count = count($json);
     } else if (count($json) > 1) {
