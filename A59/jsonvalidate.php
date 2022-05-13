@@ -17,7 +17,7 @@ if ($url != '') {
     if (array_key_exists('slug', $json[0]) || array_key_exists('Slug', $json[0])) {
       $count = count($json);
     } else if (count($json) > 1) {
-      $msg = 'INCORRECT data format returned by feed. ';
+      $msg = 'INVALID data format returned by feed.';
       $err = $json;
     } else {
       $msg = 'ERROR loading Google Sheet.';
@@ -27,7 +27,7 @@ if ($url != '') {
     if (array_key_exists('slug', $json[0])) {
       $count = count($json);
     } else {
-      $msg = 'INVALID Response Data: <b>' .  http_response_code() . '</b> | ' . $json['error'];
+      $msg = 'ERROR parsing feed data. | ' . print_r($json['error'], true);
       $err = $resp;
     }
   } else {
