@@ -3,26 +3,62 @@
     Template Name: JSON-Validate
 */
 
-$count = -1;
 $qs = preg_replace('/^\s*url=(.+)\s*$/i', '\1', urldecode($_SERVER['QUERY_STRING']));
 $url = esc_url_raw($qs, ['http', 'https']);
-if ($url !=  '') {
-  $count = 0;
-  $resp = wp_remote_get($url, ['timeout' => 30, 'sslverify' => false]);
-  if (is_array($resp) && !empty($resp['body']) && ($body = json_decode($resp['body'], true))) {
-    if (array_key_exists('slug', $body[0])) {
-      $count = count($body);
+if (preg_match('/^\s*http.{1,5}\/\/[a-z0-9]{0,10}.?area59aa\.org/i', $url)) $url = '';
+$count = ($url != '') ? 0 : -1;
+
+if ($url != '') {
+  $resp = wp_remote_get($url, ['timeout' => 10, 'sslverify' => false]);
+  if (!is_array($resp)) {
+    $msg = 'INVALID response returned by feed.';
+    $err = $resp;
+  } else if (empty($resp['body'])) {
+    $msg = 'EMPTY response returned by feed.';
+    $err = $resp;
+  } else if (str_ends_with($url, "format=csv") && ($json = csv_json($resp['body']))) {
+    if (array_key_exists('slug', $json[0]) || array_key_exists('Slug', $json[0])) {
+      $count = count($json);
+    } else if (count($json) > 1) {
+      $msg = 'INCORRECT data format returned by feed. ';
+      $err = $json;
     } else {
-      $msg = "ERROR Code " .  http_response_code() . " | " . $body['error'];
+      $msg = 'ERROR loading Google Sheet.';
+      $err = trim(htmlspecialchars(str_replace(">", ">\n", $resp['body'])));
     }
-  } else if (!is_array($resp)) {
-    $msg = "INVALID response returned by feed.";
-  } elseif (empty($resp['body'])) {
-    $msg = "EMPTY response returned by feed.";
+  } else if ($json = json_decode($resp['body'], true)) {
+    if (array_key_exists('slug', $json[0])) {
+      $count = count($json);
+    } else {
+      $msg = 'Response Code <b>' .  http_response_code() . '</b> | ' . $json['error'];
+      $err = $resp;
+    }
   } else {
-    $msg = "JSON Error/Response | " . json_last_error();
+    $msg = 'JSON Error <b>' . json_last_error() . '</b> | ' . json_last_error_msg();
+    $err = trim(htmlspecialchars($resp['body']));
   }
 }
+
+function csv_json($arr)
+{
+  $csv =  explode("\n", $arr);
+  $h = str_getcsv(array_shift($csv));
+  $data = array_map(fn ($r) => array_combine($h, str_getcsv($r)), $csv);
+  $json = json_decode(json_encode($data, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_IGNORE), true);
+  foreach ($json as $k => $v) {
+    if (array_key_exists('types', $json[$k])) $json[$k]['types'] = mtgtypes_json($v['types']);
+    else if (array_key_exists('Types', $json[$k])) $json[$k]['Types'] = mtgtypes_json($v['Types']);
+  }
+  return $json;
+}
+
+function mtgtypes_json($v)
+{
+  $types = [];
+  foreach (explode(",", $v) as $t) array_push($types, $t);
+  return $types;
+}
+
 ?>
 
 <!DOCTYPE html>
@@ -34,6 +70,7 @@ if ($url !=  '') {
   <link rel="stylesheet" href="https://meetingguide.org/css/app.css">
   <link rel="mask-icon" href="https://meetingguide.org/img/meeting-guide-favicon.png" color="#00437c">
   <link rel="icon" type="image/png" href="https://meetingguide.org/img/meeting-guide-favicon.png">
+  <style type="text/ccc">aside {display:none !important;}</style>
   <script>
     window.onload = function() {
       history.pushState({}, null, unescape(location.href));
@@ -45,12 +82,8 @@ if ($url !=  '') {
 
   <nav class="navbar navbar-expand-lg fixed-top navbar-dark" id="navbar">
     <div class="container">
-      <a class="navbar-brand" href="/activity">Area 59 - JSON Feed Validator</a>
-      <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#main-nav" aria-controls="main-nav" aria-expanded="false" aria-label="Toggle navigation">
-        <span class="navbar-toggler-icon"></span>
-      </button>
-      <div class="collapse navbar-collapse" id="main-nav">
-      </div>
+      <a class="navbar-brand" href="/">Area 59 JSON Validator</a>
+      <div class="collapse navbar-collapse" id="main-nav"> </div>
     </div>
   </nav>
 
@@ -58,23 +91,25 @@ if ($url !=  '') {
     <div class="container page">
       <div class="row">
         <div class="col-md-12">
-          <p class="lead" style="font-weight:350">Use this validator to check if a JSON is valid and visible to the <span style="font-weight:450">Area 59</span> website.</p>
-          <p zoompage-fontsize="17">For more info on the Meeting Guide API, check out the <a href="https://github.com/meeting-guide/spec" zoompage-fontsize="17">specification</a>.</p>
+          <p class="lead" style="margin-top:-15px; font-weight:350" ; style="margin-top:-10px">This validator will check if a JSON feed is valid and visible to the <span style="font-weight:450">Area 59</span> website.</p>
+          <p>For more info on the Meeting Guide API, check out the <a href="https://github.com/meeting-guide/spec" zoompage-fontsize="17">specification</a>.</p>
           <form action="/jsonvalidate" method="get">
             <div class="input-group">
               <input type="url" name="url" class="form-control" value="<?php echo $url; ?>" placeholder="https://distirctwebsite.org/jsonfeed/">
-              <div class="input-group-append" style="margin-left:10px">
+              <div class="input-group-append">
                 <input type="submit" class="btn btn-outline-secondary" value="Check Feed">
               </div>
             </div>
           </form>
-          <div style="<? if ($count < 0) echo 'display:none'; ?>" class="alert alert-<? echo ($count > 0) ? 'success' : 'danger'; ?>">
-            <? echo ($count > 0) ? 'SUCCESS:' : 'ERROR:'; ?>&nbsp;&nbsp;The feed returned <b><?php echo $count; ?></b> meetings.
-            <?php if ($count == 0) echo "<div style='margin-top:10px'>" . $msg . "</div>"; ?>
-          </div>
-          <pre style="<? if ($count < 0) echo 'display:none'; ?>" class="rounded">
-<code class="language-json"><?php print_r(($count > 0) ? $body : $resp); ?></code>
-          </pre>
+          <?php if ($count > 0) {
+            echo '<div class="alert alert-success" style="font-weight:500; font-size:17px">The feed is <b>valid</b> and returned <b>' . $count . '</b> meetings</div>';
+            echo '<div class="lead" style="font-size:13px; margin:-10px 0 5px 0; line-height:1.1em">' . $url . '</div>';
+            echo '<pre id="output"><code class="language-json">' . print_r($json, true) . '</code></pre>';
+          } else if ($count == 0) {
+            echo '<div class="alert alert-danger" style="font-weight:500; font-size:17px">' . $msg . '</div>';
+            echo '<div class="lead" style="font-size:13px; margin:-10px 0 5px 0; line-height:1.1em">' . $url . '</div>';
+            echo '<pre id="output"><code class="language-html">' . print_r($err, true) . '</code></pre>';
+          } ?>
         </div>
       </div>
     </div>
