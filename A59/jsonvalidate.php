@@ -10,29 +10,49 @@ $count = ($url != '') ? 0 : -1;
 
 if ($url != '') {
   $resp = wp_remote_get($url, ['timeout' => 30, 'sslverify' => false]);
-  if (!is_array($resp) || empty($resp['body'])) {
-    $msg = 'INCOMPLETE response returned by feed.';
-    $err = $resp;
-  } else if (preg_match('/google.+export.+format=csv/i', $url) && ($json = csv_json($resp['body']))) {
+  // general error
+  if (is_wp_error($resp)) {
+    $msg = "ERROR response from feed. | " . print_r($resp->get_error_message(), true);
+    $err = text_clean(print_r($resp, true));
+  }
+  // empty body or incomplete response
+  else if (!is_array($resp) || empty($resp['body'])) {
+    $msg = 'INVALID response returned by feed.';
+    $err = text_clean(print_r($resp, true));
+  }
+  // google sheet
+  else if (preg_match('/google.+export.+format=csv/i', $url) && ($json = csv_json($resp['body']))) {
+    // check for "slug" in feed
     if (array_key_exists('slug', $json[0]) || array_key_exists('Slug', $json[0])) {
       $count = count($json);
-    } else if (count($json) > 1) {
+    }
+    // multiple rows; likely data format error
+    else if (count($json) > 1) {
       $msg = 'INVALID data format returned by feed.';
       $err = $json;
-    } else {
+    }
+    // single row; generic error
+    else {
       $msg = 'ERROR loading Google Sheet.';
-      $err = trim(htmlspecialchars(str_replace(">", ">\n", $resp['body'])));
+      $err = text_clean(print_r($resp['body'], true), true);
     }
-  } else if ($json = json_decode($resp['body'], true)) {
-    if (array_key_exists('slug', $json[0])) {
+  }
+  // JSON feed data
+  else if ($json = json_decode($resp['body'], true)) {
+    // check for "slug" in feed
+    if (array_key_exists('slug', $json[0]) || array_key_exists('Slug', $json[0])) {
       $count = count($json);
-    } else {
-      $msg = 'ERROR parsing feed data. | ' . print_r($json['error'], true);
-      $err = $resp;
     }
-  } else {
-    $msg = 'JSON Error: <b>' . json_last_error() . '</b> | ' . json_last_error_msg();
-    $err = trim(htmlspecialchars($resp['body']));
+    // invalid JSON data format
+    else {
+      $msg = 'ERROR parsing feed data.  ' . print_r($json['error'], true);
+      $err = text_clean(print_r($resp, true));
+    }
+  }
+  // JSON parse error
+  else {
+    $msg = 'JSON Error Code: <b>' . json_last_error() . '</b> | ' . json_last_error_msg();
+    $err = text_clean(print_r($resp['body'], true), true);
   }
 }
 
@@ -50,6 +70,12 @@ function csv_json($arr)
     }
   }
   return $json;
+}
+
+function text_clean($s, $full = false)
+{
+  if ($full) $s = str_replace(">", ">\n", str_replace(" \n", "", str_replace("  ", " ", str_replace(" ", " ", $s))));
+  return trim(htmlspecialchars($s));
 }
 
 ?>
@@ -84,7 +110,8 @@ function csv_json($arr)
     <div class="container page">
       <div class="row">
         <div class="col-md-12">
-          <p class="lead" style="margin-top:-15px; font-weight:350" ; style="margin-top:-10px">This validator will check if a JSON feed is valid and visible to the <span style="font-weight:450">Area 59</span> website.</p>
+          <p class="lead" style="margin-top:-17px; margin-bottom:10px; font-weight:350" ; style="margin-top:-10px">
+            This validator checks if the <span style="font-weight:450">Area 59</span> website can load a JSON feed.</p>
           <p>For more info on the Meeting Guide API, check out the <a href="https://github.com/meeting-guide/spec" zoompage-fontsize="17">specification</a>.</p>
           <form action="/jsonvalidate" method="get">
             <div class="input-group">
