@@ -10,6 +10,7 @@ $count = ($url != '') ? 0 : -1;
 
 if ($url != '') {
   $resp = wp_remote_get($url, ['timeout' => 30, 'sslverify' => false]);
+  $rc = wp_remote_retrieve_response_code($resp);
   // general error
   if (is_wp_error($resp)) {
     $msg = "ERROR response from feed. | " . print_r($resp->get_error_message(), true);
@@ -36,6 +37,19 @@ if ($url != '') {
       $msg = 'ERROR loading Google Sheet.';
       $err = text_clean(print_r($resp['body'], true), true);
     }
+  }
+  // page not found
+  else if ($rc == '404') {
+    $msg = 'ERROR 404 | Page not found.';
+  }
+  // other http error
+  else if ($rc != '200' && $rc != '301' && $rc != '302') {
+    $msg = 'ERROR ' . $rc . ' | ' . $body['error'];
+  }
+  // no JSON found
+  else if (substr($resp['body'], 0, 2) != '[{') {
+    $msg = 'INVALID data format | No JSON data found.';
+    $err = text_clean(print_r($resp['body'], true), true);
   }
   // JSON feed data
   else if ($json = json_decode($resp['body'], true)) {
