@@ -4,16 +4,17 @@
 */
 
 $qs = preg_replace('/^\s*url=(.+)\s*$/i', '\1', urldecode($_SERVER['QUERY_STRING']));
-$url = esc_url_raw($qs, ['http', 'https']);
+if ($qs != 'url=') $url = esc_url_raw($qs, ['https', 'http']);
 if (preg_match('/^\s*http.{1,5}\/\/[a-z0-9]{0,10}.?area59aa\.org/i', $url)) $url = '';
+$ip = ($url != '') ? gethostbyname(parse_url($url, PHP_URL_HOST)) : '';
 $count = ($url != '') ? 0 : -1;
 
 if ($url != '') {
-  $resp = wp_remote_get($url, ['timeout' => 30, 'sslverify' => false]);
+  $resp = wp_remote_get($url, ['timeout' => 30, 'sslverify' => false, 'httpversion' => '1.1']);
   $rc = wp_remote_retrieve_response_code($resp);
   // general error
   if (is_wp_error($resp)) {
-    $msg = "ERROR response from feed. | " . print_r($resp->get_error_message(), true);
+    $msg = "ERROR response from feed. | " . print_r($resp->get_error_message(), true) . " | IP: " . print_r($ip, true);
     $err = text_clean(print_r($resp, true));
   }
   // empty body or incomplete response
