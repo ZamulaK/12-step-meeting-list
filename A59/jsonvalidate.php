@@ -3,22 +3,29 @@
     Template Name: JSON-Validate
 */
 
+$noproxy = !str_contains(urldecode($_SERVER['QUERY_STRING']), 'proxy=1');
 $qs = preg_replace('/^\s*url=(.+)\s*$/i', '\1', urldecode($_SERVER['QUERY_STRING']));
-if ($qs != 'url=') $url = esc_url_raw($qs, ['https', 'http']);
+if ($qs != 'url=') $url = esc_url_raw($qs, ['http', 'https']);
 if (preg_match('/^\s*http.{1,5}\/\/[a-z0-9]{0,10}.?area59aa\.org/i', $url)) $url = '';
-$ip = ($url != '') ? gethostbyname(parse_url($url, PHP_URL_HOST)) : '';
 $count = ($url != '') ? 0 : -1;
+$ip = gethostbyname(parse_url($url, PHP_URL_HOST));
 
 if ($url != '') {
-  $resp = wp_remote_get($url, ['timeout' => 30, 'sslverify' => false, 'httpversion' => '1.1']);
-  $rc = wp_remote_retrieve_response_code($resp);
+  if ($noproxy) {
+    $resp = wp_remote_get($url, ['timeout' => 30, 'sslverify' => false, 'httpversion' => '1.1']);
+    $rc = wp_remote_retrieve_response_code($resp);
+  } else {
+    $respstr = file_get_contents($url, false, stream_context_create(['http' => ['proxy' => '51.81.32.81:8888']]));
+    $rc = $respstr === false ? '-1' : '200';
+    $resp = ['body' => $respstr];
+  }   
   // general error
   if (is_wp_error($resp)) {
     $msg = "ERROR response from feed. | " . print_r($resp->get_error_message(), true) . " | IP: " . print_r($ip, true);
     $err = text_clean(print_r($resp, true));
   }
   // empty body or incomplete response
-  else if (!is_array($resp) || empty($resp['body'])) {
+  else if (($noproxy && !is_array($resp)) || empty($resp['body'])) {
     $msg = 'INVALID response returned by feed.';
     $err = text_clean(print_r($resp, true));
   }
@@ -39,11 +46,17 @@ if ($url != '') {
       $err = text_clean(print_r($resp['body'], true), true);
     }
   }
-  // page not found
+  // specific http errors
   else if ($rc == '404') {
     $msg = 'ERROR 404 | Page not found.';
+  } 
+  else if ($rc == '401') {
+    $msg = 'ERROR 401 | Unauthorized.';
+  } 
+  else if ($rc == '-1') {
+    $msg = 'ERROR -1 | Unable to retrieve feed.';
   }
-  // other http error
+  // other http errors
   else if ($rc != '200' && $rc != '301' && $rc != '302') {
     $msg = 'ERROR ' . $rc . ' | ' . $body['error'];
   }
