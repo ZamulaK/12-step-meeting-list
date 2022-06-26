@@ -8,24 +8,28 @@ $qs = preg_replace('/^\s*url=(.+)\s*$/i', '\1', urldecode($_SERVER['QUERY_STRING
 if ($qs != 'url=') $url = esc_url_raw($qs, ['http', 'https']);
 if (preg_match('/^\s*http.{1,5}\/\/[a-z0-9]{0,10}.?area59aa\.org/i', $url)) $url = '';
 $count = ($url != '') ? 0 : -1;
-$ip = gethostbyname(parse_url($url, PHP_URL_HOST));
+
+$ipprx = '51.81.32.81:8888';
+$ipsrc = file_get_contents('https://ipecho.net/plain', false) . ($noproxy ? '' : '&nbsp; ➜ &nbsp;' . $ipprx);
+$ipdst = gethostbyname(parse_url($url, PHP_URL_HOST));
+$ipinfo = ' | &nbsp;&nbsp;&nbsp;&nbsp;'  . $ipsrc . '&nbsp; ➜ &nbsp;' . $ipdst;
 
 if ($url != '') {
   if ($noproxy) {
     $resp = wp_remote_get($url, ['timeout' => 30, 'sslverify' => false, 'httpversion' => '1.1']);
     $rc = wp_remote_retrieve_response_code($resp);
   } else {
-    $respstr = file_get_contents($url, false, stream_context_create(['http' => ['proxy' => '51.81.32.81:8888']]));
+    $respstr = file_get_contents($url, false, stream_context_create(['http' => ['proxy' => $ipprx, 'ignore_errors' => false]]));
     $rc = $respstr === false ? '-1' : '200';
-    $resp = ['body' => $respstr];
-  }   
+    $resp = ['header' => $http_response_header, 'body' => $respstr];
+  }
   // general error
-  if (is_wp_error($resp)) {
-    $msg = "ERROR response from feed. | " . print_r($resp->get_error_message(), true) . " | IP: " . print_r($ip, true);
+  if (is_wp_error($resp) || $rc == '-11') {
+    $msg = "ERROR response from feed. | " . print_r($resp->get_error_message(), true);
     $err = text_clean(print_r($resp, true));
   }
   // empty body or incomplete response
-  else if (($noproxy && !is_array($resp)) || empty($resp['body'])) {
+  else if (!is_array($resp) || empty($resp['body'])) {
     $msg = 'INVALID response returned by feed.';
     $err = text_clean(print_r($resp, true));
   }
@@ -49,11 +53,9 @@ if ($url != '') {
   // specific http errors
   else if ($rc == '404') {
     $msg = 'ERROR 404 | Page not found.';
-  } 
-  else if ($rc == '401') {
+  } else if ($rc == '401') {
     $msg = 'ERROR 401 | Unauthorized.';
-  } 
-  else if ($rc == '-1') {
+  } else if ($rc == '-1') {
     $msg = 'ERROR -1 | Unable to retrieve feed.';
   }
   // other http errors
@@ -151,10 +153,10 @@ function text_clean($s, $full = false)
           </form>
           <?php if ($count > 0) {
             echo '<div class="alert alert-success" style="font-weight:500; font-size:17px">The feed is <b>valid</b> and returned <b>' . $count . '</b> meetings</div>';
-            echo '<div class="lead" style="font-size:13px; margin:-10px 0 5px 0; line-height:1.1em">' . $url . '</div>';
+            echo '<div class="lead" style="font-size:13px; margin:-10px 0 5px 0; line-height:1.1em">' . $url . $ipinfo . '</div>';
             echo '<pre id="output"><code class="language-json">' . print_r($json, true) . '</code></pre>';
           } else if ($count == 0) {
-            echo '<div class="alert alert-danger" style="font-weight:500; font-size:17px">' . $msg . '</div>';
+            echo '<div class="alert alert-danger" style="font-weight:500; font-size:17px">' . $msg . $ipinfo . '</div>';
             echo '<div class="lead" style="font-size:13px; margin:-10px 0 5px 0; line-height:1.1em">' . $url . '</div>';
             echo '<pre id="output"><code class="language-html">' . print_r($err, true) . '</code></pre>';
           } ?>
