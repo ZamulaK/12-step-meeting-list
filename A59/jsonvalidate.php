@@ -7,6 +7,7 @@ $proxy = $_GET['proxy'];
 $ipprx = $_GET['ipprx'];
 $qs = preg_replace('/[\?&]*(?:proxy=.{0,3}|ipprx=.{0,22})(?:&|$)/i', '', urldecode($_SERVER['QUERY_STRING']));
 $url = preg_replace('/[\?&]*url=(.+)/i', '\1', $qs);
+if ($url == 'url=') $url = '';
 if (preg_match('/^\s*http.{1,5}\/\/[a-z0-9]{0,10}.?area59aa\.org/i', $url)) $url = '';
 $count = ($url != '') ? 0 : -1;
 
@@ -179,16 +180,12 @@ function text_clean($s, $full = false)
               <div class="input-group-append">
                 <input type="submit" class="btn btn-outline-secondary" value="Check Feed">
               </div>
-              <div class="input-group-append" style="margin-left:10px; width:75px">
-                <span style="display:inline-block; padding:7px 5px 0 0">Proxy:</span>
+              <div class="input-group-append" style="margin-left:15px; width:25px">
                 <input type="checkbox" id="proxy" name="proxy" onclick="proxyClick();" class="form-control" <?php echo $proxy == 1 ? "checked" : "";  ?> value="<?php echo $proxy; ?>" placeholder="ipaddr:port">
               </div>
             </div>
-            <div id="divProxy" style="margin:10px 210px 75px; display:<?php echo $proxy == 1 ? 'block' : 'none'; ?>;">
-              <div style="float:right;" class="input-group-append">
-                <span style="display:inline-block; padding:7px 7px">Proxy Server:</span>
-                <input style="display:inline-block; width:185px;" type=" text" id="ipprx" name="ipprx" class="form-control" value="<?php echo $ipprx; ?>" placeholder="ipaddr:port">
-              </div>
+            <div id="divProxy" style="margin:10px 0 10px; display:<?php echo $proxy == 1 ? 'block' : 'none'; ?>;">
+              <input style="display:inline-block; width:185px;" type=" text" id="ipprx" name="ipprx" class="form-control" value="<?php echo $ipprx; ?>" placeholder="ipaddr:port">
             </div>
           </form>
           <?php if ($count > 0) {
