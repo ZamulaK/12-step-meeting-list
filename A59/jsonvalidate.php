@@ -161,8 +161,10 @@ function text_clean($s, $full = false)
 <body class="validate">
 
   <nav class="navbar navbar-expand-lg fixed-top navbar-dark" id="navbar">
-    <div class="container">
+    <div class="container" style="line-height:0;">
       <a class="navbar-brand" href="/">Area 59 JSON Validator</a>
+      <div style="height:20px; margin-left:55px; color: white; font-size:20px"><?php echo $ipsrc ?>
+      </div>
       <div class="collapse navbar-collapse" id="main-nav"> </div>
     </div>
   </nav>
@@ -171,9 +173,9 @@ function text_clean($s, $full = false)
     <div class="container page">
       <div class="row">
         <div class="col-md-12">
-          <p class="lead" style="margin-top:-17px; margin-bottom:10px; font-weight:350" ; style="margin-top:-10px">
+          <p class="lead" style="margin-top:-10px; margin-bottom:10px; font-weight:350; line-height:25px;" ; style="margin-top:-10px">
             This validator checks if the <span style="font-weight:450">Area 59</span> website can load a JSON feed.</p>
-          <p>For more info on the Meeting Guide API, check out the <a href="https://github.com/meeting-guide/spec" zoompage-fontsize="17">specification</a>.</p>
+          <p style="line-height:25px;">For more info on the Meeting Guide API, check out the <a href="https://github.com/meeting-guide/spec" zoompage-fontsize="17">specification</a>.</p>
           <form action="/jsonvalidate" method="get">
             <div class="input-group">
               <input type="url" name="url" class="form-control" value="<?php echo $url; ?>" placeholder="https://distirctwebsite.org/jsonfeed/">
