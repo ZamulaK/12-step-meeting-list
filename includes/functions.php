@@ -891,10 +891,8 @@ function tsml_get_location($location_id = false)
 	}
 
 	//directions link (obsolete 4/15/2018, keeping for compatibility)
-	$location->directions = 'https://maps.google.com/?' . http_build_query([
-		'daddr' => $location->latitude . ',' . $location->longitude,
-		'saddr' => 'Current Location',
-		'q' => $location->post_title,
+	$location->directions = 'https://maps.google.com/maps/dir/?api=1&' . http_build_query([
+		'destination' => $location->latitude . ',' . $location->longitude,
 	]);
 
 	return $location;
@@ -979,10 +977,8 @@ function tsml_get_meeting($meeting_id = false)
 		$meeting->location_meetings = tsml_get_meetings(['location_id' => $location->ID]);
 
 		//directions link (obsolete 4/15/2018, keeping for compatibility)
-		$meeting->directions = 'https://maps.google.com/?' . http_build_query([
-			'daddr' => $location->latitude . ',' . $location->longitude,
-			'saddr' => 'Current Location',
-			'q' => $meeting->location,
+		$meeting->directions = 'https://maps.google.com/maps/dir/?api=1&' . http_build_query([
+			'destination' => $location->latitude . ',' . $location->longitude,
 		]);
 		$meeting->approximate = $location->approximate;
 	}
@@ -2097,13 +2093,16 @@ function tsml_import_changes($feed_meetings, $data_source_url, $data_source_last
 		list($day_of_week, $dow_number) = tsml_get_day_of_week_info($meeting['day'], $week_days);
 		$meeting_slug =  $meeting['slug'];
 
-		// numeric slugs may need some reformatting
-		if (is_numeric($meeting_slug)) {
-			$meeting_slug .= '-' . $dow_number;
-		}
-
 		// match feed/database on unique slug
 		$is_matched = in_array($meeting_slug, $db_slugs);
+
+		if (!$is_matched) {
+			// numeric slugs may need some reformatting
+			if (is_numeric($meeting_slug)) {
+				$meeting_slug .= '-' . $dow_number;
+			}
+			$is_matched = in_array($meeting_slug, $db_slugs);
+		}
 
 		// add slug to feed array to help determine current db removals later on...
 		$feed_slugs[] = $meeting_slug;
@@ -2111,7 +2110,8 @@ function tsml_import_changes($feed_meetings, $data_source_url, $data_source_last
 		// has the meeting been updated since the last refresh?
 		$current_meeting_last_update = strtotime($meeting['updated']);
 		if ($current_meeting_last_update > $data_source_last_refresh) {
-			$meeting_name = $meeting['name'];
+			$permalink = get_permalink($meeting['id']);
+			$meeting_name = '<a href=' . $permalink . '>' . $meeting['name'] . '</a>';
 			$meeting_update_date = date('M j, Y  g:i a', $current_meeting_last_update);
 
 			if ($is_matched) {
@@ -2122,7 +2122,7 @@ function tsml_import_changes($feed_meetings, $data_source_url, $data_source_last
 		}
 	}
 
-	// list meetings in local database which are not matched with feed
+	// mark as "Remove" those meetings in local database which are not matched with feed
 	foreach ($db_meetings as $db_meeting) {
 
 		list($day_of_week, $dow_number) = tsml_get_day_of_week_info($db_meeting['day'], $week_days);
@@ -2130,9 +2130,21 @@ function tsml_import_changes($feed_meetings, $data_source_url, $data_source_last
 
 		$is_matched = in_array($meeting_slug, $feed_slugs);
 
+		// Check if slug has been modified on import by removing an appended suffix and test for match again
+		if (!$is_matched) {
+			for ($x = 0; $x <= 10; $x++) {
+				if (str_contains($meeting_slug, '-' . $x) ) {
+					$meeting_slug = str_replace('-' . $x, '', $meeting_slug);
+					break;
+				}
+			}
+			$is_matched = in_array($meeting_slug, $feed_slugs);
+		}
+
 		if (!$is_matched) {
 			$meeting_update_date = date('M j, Y  g:i a', $data_source_last_refresh);
-			$meeting_name = $db_meeting['name'];
+			$permalink = get_permalink($db_meeting['id']);
+			$meeting_name = '<a href=' . $permalink . '>' . $db_meeting['name'] . '</a>';
 			$message_lines[] = "<tr style='color:red;'><td>Remove</td><td >$meeting_name</td><td>$day_of_week</td><td>* $meeting_update_date</td></tr>";
 		}
 	}
