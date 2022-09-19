@@ -7,6 +7,7 @@ $proxy = $_GET['proxy'];
 $ipprx = $_GET['ipprx'];
 $qs = preg_replace('/[\?&]*(?:proxy=.{0,3}|ipprx=.{0,22})(?:&|$)/i', '', urldecode($_SERVER['QUERY_STRING']));
 $url = preg_replace('/[\?&]*url=(.+)/i', '\1', $qs);
+$url = preg_replace('/(?:\/edit\??.*|\/view\??.*)/i', '/export?format=csv', $url);
 if ($url == 'url=') $url = '';
 if (preg_match('/^\s*http.{1,5}\/\/[a-z0-9]{0,10}.?area59aa\.org/i', $url)) $url = '';
 $count = ($url != '') ? 0 : -1;
