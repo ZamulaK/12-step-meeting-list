@@ -7,16 +7,17 @@
 */
 
 add_action('rest_api_init', function () {
-  register_rest_route( 'meeting-guide/v1', 'external-feed/(?P<feed_id>\d+)', 
+  register_rest_route( 'meeting-guide/v1', 'external-feed/(?P<feed_id>[a-zA-Z0-9-]+)', 
     array('methods'  => 'GET', 'callback' => 'get_external_feed')
   );
 });
 
 function get_external_feed($request) {
-  $feeds = array(
-    '50' => 'https://script.google.com/a/area59aa.org/macros/s/AKfycbxC7DJPMuw2sV-qIz_Ylp-IL_DuB6KKpqkLTs9J1DPq9MhEJF-PsqW9Frt-4-7ON7aXtg/exec?id=50'
-  );
-
+  $feeds = [
+    '50' => 'https://script.google.com/a/area59aa.org/macros/s/AKfycbxC7DJPMuw2sV-qIz_Ylp-IL_DuB6KKpqkLTs9J1DPq9MhEJF-PsqW9Frt-4-7ON7aXtg/exec?id=50', 
+    '50a' => 'https://docs.google.com/spreadsheets/u/1/d/e/2PACX-1vRxJjf0wMdj_DBWSWLRsYbxxEFUynje2hmItvmePXDCO_3UVLk52GtCgnOBIJHA035mLCzn4vUpWzEX/pub?gid=874548057&single=true&output=csv'
+  ];
+  
   // check ID and  URL
   $id = $request['feed_id'];
   $url = $feeds[$id];
@@ -144,9 +145,53 @@ function get_json_feed($url, $isFeed = false, $proxy = '', $ipprx = '')
 
 function csv_json($arr)
 {
-  $csv =  explode("\n", $arr);
-  $h = str_getcsv(array_shift($csv));
+  $dayList = [
+    'Sunday' => '0', 'Monday' => '1', 'Tuesday' => '2', 'Wednesday' => '3'
+  , 'Thursday' => '4', 'Friday' => '5', 'Saturday' => '6'];
+  
+  $fieldList = [
+    'Name' => 'name',
+    'Slug' => 'slug',
+    'Day' => 'day',
+    'Time' => 'time', 
+    'End Time' => 'end_time',
+    'Time Formatted' => 'time_formatted', 
+    'Types' => 'types', 
+    'Notes' => 'notes',
+    'Location' => 'location',
+    'Location Notes' => 'location_notes',
+    'Address' => 'formatted_address',
+    'Region' => 'region', 
+    'Conference URL' => 'conference_url',
+    'Conference Phone' => 'conference_phone',
+    'Conference URL Notes' => 'conference_url_notes', 
+    'Group' => 'group',
+    'District' => 'district',
+    'Updated' => 'updated',
+    'PayPal' => 'paypal',  
+    'Square' => 'square',
+    'Venmo' => 'venmo',
+    'Website' => 'website', 
+    'Email' => 'email',
+    'Phone' => 'phone',
+    'Group Notes' => 'group_notes',
+    'Conference Phone Notes' => 'conference_phone_notes',
+    'Latitude' => 'latitude',
+    'Longitude' => 'longitude',
+    'Coordinates' => 'coordinates',
+    'Approximate' => 'approximate',
+    'Districts' => 'districts', 
+    'Regions' => 'regions',
+    'Sub District' => 'sub_district',
+    'Sub Region' => 'sub_region',
+    'Edit URL' => 'edit_url'
+  ];
+  
+  $csv =  explode("\n", $arr);  
+  $h = preg_replace_callback('~^-?\K.*$~', fn($c) => $fieldList[$c[0]] ?? $c[0], str_getcsv(array_shift($csv)));
+  
   $data = array_map(fn ($r) => array_combine($h, str_getcsv($r)), $csv);
+
   $json = json_decode(json_encode($data, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_IGNORE), true);
   foreach ($json as &$j) {
     foreach (array_filter(['Types', 'types'], fn ($x) =>  array_key_exists($x, $j)) as $t) {
