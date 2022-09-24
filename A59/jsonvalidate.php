@@ -16,118 +16,11 @@ $ipsrc = file_get_contents('https://ipecho.net/plain', false) . ($proxy == '1' ?
 $ipdst = gethostbyname(parse_url($url, PHP_URL_HOST));
 $ipinfo = ' | &nbsp;&nbsp;&nbsp;'  . $ipsrc . '&nbsp; ➜ &nbsp;' . $ipdst;
 
-if ($url != '') {
-  if ($proxy != '1') {
-    $resp = wp_remote_get($url, ['timeout' => 30, 'sslverify' => false, 'httpversion' => '1.1']);
-    $rc = wp_remote_retrieve_response_code($resp);
-    if (!is_wp_error($resp)) {
-      if (!is_array($resp)) $resp = ['error' => '', 'body' => $resp];
-      if ($rc == '200' || $rc == '301' || $rc == '302') $rc = '200';
-      else {
-        $resp['error'] = print_r($resp['body'], true);
-        if (empty($resp['http_response'])) $resp['http_response'] = $resp['body'];
-      }
-    }
-  } else {
-    $ch = curl_init();
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_URL, $url);
-    curl_setopt($ch, CURLOPT_FAILONERROR, true);
-    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
-    if ($ipprx != '') curl_setopt($ch, CURLOPT_PROXY, $ipprx);
-    $resp = ['error' => '', 'body' => curl_exec($ch)];
-    $rc = curl_errno($ch);
-    if ($rc == '0') $rc = '200';
-    else {
-      $msg = curl_error($ch);
-      $resp['error']  = 'cURL: ' . $msg;
-      if (empty($resp['http_response'])) $resp['http_response'] = $resp;
-      if ($rc == '22') $rc = substr($msg, -3);
-    }
-    curl_close($ch);
-  }
-
-  // general error
-  if (is_wp_error($resp)) {
-    $msg = "ERROR response from feed. | " . print_r($resp->get_error_message(), true);
-    $err = text_clean(print_r($resp, true));
-  }
-  // specific http errors
-  else if ($rc == '404') {
-    $msg = 'ERROR 404 | Page not found.';
-    $err = text_clean(print_r($resp['http_response'], true));
-  } else if ($rc == '401') {
-    $msg = 'ERROR 401 | Unauthorized.';
-    $err = text_clean(print_r($resp['http_response'], true));
-  }
-  // other http errors
-  else if ($rc != '200') {
-    $msg = 'ERROR ' . $rc . ' | ' . text_clean(print_r($resp['error'], true));
-    $err = text_clean(print_r($resp['http_response'], true));
-  }
-  // google sheet
-  else if (preg_match('/google.+export.+format=csv/i', $url) && ($json = csv_json($resp['body']))) {
-    // check for "slug" in feed
-    if (array_key_exists('slug', $json[0]) || array_key_exists('Slug', $json[0])) {
-      $count = count($json);
-    }
-    // multiple rows; likely data format error
-    else if (count($json) > 1) {
-      $msg = 'INVALID data format returned by feed.';
-      $err = $json;
-    }
-    // single row; generic error
-    else {
-      $msg = 'ERROR loading Google Sheet.';
-      $err = text_clean(print_r($resp['body'], true), true);
-    }
-  }
-  // no JSON found
-  else if (substr($resp['body'], 0, 2) != '[{') {
-    $msg = 'INVALID data format | No JSON data found.';
-    $err = text_clean(print_r($resp['body'], true), true);
-  }
-  // JSON feed data
-  else if ($json = json_decode($resp['body'], true)) {
-    // check for "slug" in feed
-    if (array_key_exists('slug', $json[0]) || array_key_exists('Slug', $json[0])) {
-      $count = count($json);
-    }
-    // invalid JSON data format
-    else {
-      $msg = 'ERROR parsing feed data.  ' . print_r($json['error'], true);
-      $err = text_clean(print_r($resp['body'], true));
-    }
-  }
-  // JSON parse error
-  else {
-    $msg = 'JSON Error Code: <b>' . json_last_error() . '</b> | ' . json_last_error_msg();
-    $err = text_clean(print_r($resp['body'], true), true);
-  }
-}
-
-function csv_json($arr)
-{
-  $csv =  explode("\n", $arr);
-  $h = str_getcsv(array_shift($csv));
-  $data = array_map(fn ($r) => array_combine($h, str_getcsv($r)), $csv);
-  $json = json_decode(json_encode($data, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_IGNORE), true);
-  foreach ($json as &$j) {
-    foreach (array_filter(['Types', 'types'], fn ($x) =>  array_key_exists($x, $j)) as $t) {
-      $types = [];
-      foreach (explode(",", $j[$t]) as $x) array_push($types, trim($x));
-      $j[$t] = $types;
-    }
-  }
-  return $json;
-}
-
-function text_clean($s, $full = false)
-{
-  if ($full) $s = str_replace(">", ">\n", str_replace(" \n", "", str_replace("  ", " ", str_replace(" ", " ", $s))));
-  return trim(htmlspecialchars($s));
-}
+$resp = get_json_feed($url, false, $proxy, $ipprx);
+$json = $resp['json'];
+$count = $resp['count'];
+$msg = $resp['msg'];
+$err = $resp['error'];
 
 ?>
 
@@ -147,7 +40,7 @@ function text_clean($s, $full = false)
   </style>
   <script>
     window.onload = function() {
-      history.pushState({}, null, unescape(location.href));
+      history.pushState({}, null, unescape(location.href.replace('&ipprx=', '')));
     }
 
     function proxyClick() {
