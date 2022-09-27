@@ -14,8 +14,8 @@ add_action('rest_api_init', function () {
 
 function get_external_feed($request) {
   $feeds = [
-    '50' => 'https://script.google.com/a/area59aa.org/macros/s/AKfycbxC7DJPMuw2sV-qIz_Ylp-IL_DuB6KKpqkLTs9J1DPq9MhEJF-PsqW9Frt-4-7ON7aXtg/exec?id=50', 
-    '50a' => 'https://docs.google.com/spreadsheets/u/1/d/e/2PACX-1vRxJjf0wMdj_DBWSWLRsYbxxEFUynje2hmItvmePXDCO_3UVLk52GtCgnOBIJHA035mLCzn4vUpWzEX/pub?gid=874548057&single=true&output=csv'
+    '50' => 'https://docs.google.com/spreadsheets/u/1/d/e/2PACX-1vRxJjf0wMdj_DBWSWLRsYbxxEFUynje2hmItvmePXDCO_3UVLk52GtCgnOBIJHA035mLCzn4vUpWzEX/pub?gid=874548057&single=true&output=csv', 
+    '50a' => 'https://script.google.com/a/area59aa.org/macros/s/AKfycbxC7DJPMuw2sV-qIz_Ylp-IL_DuB6KKpqkLTs9J1DPq9MhEJF-PsqW9Frt-4-7ON7aXtg/exec?id=50'
   ];
   
   // check ID and  URL
@@ -39,7 +39,7 @@ function get_external_feed($request) {
 
 function get_json_feed($url, $proxy = '', $ipprx = '')
 {
-  if ($url == '') return array('json' => '', 'msg' => '', 'error' => '');
+  if ($url == '') return array('json' => '', 'count' => -1, 'msg' => 'Dan', 'error' => '');
 
   if ($proxy != '1') {
     $resp = wp_remote_get($url, ['timeout' => 30, 'sslverify' => false, 'httpversion' => '1.1']);

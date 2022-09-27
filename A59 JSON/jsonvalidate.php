@@ -9,14 +9,16 @@ $qs = preg_replace('/[\?&]*(?:proxy=.{0,3}|ipprx=.{0,22})(?:&|$)/i', '', urldeco
 $url = preg_replace('/[\?&]*url=(.+)/i', '\1', $qs);
 $url = preg_replace('/(?:\/edit\??.*|\/view\??.*)/i', '/export?format=csv', $url);
 if ($url == 'url=') $url = '';
-if (preg_match('/^\s*http.{1,5}\/\/[a-z0-9]{0,10}.?area59aa\.org/i', $url)) $url = '';
+if (preg_match('/^\s*http.{1,5}\/\/[a-z0-9]{0,10}.?area59aa\.org/i', $url)) {
+  $url = preg_match('/meeting.guide.v1.external.feed./i', $url) ? $url : '';
+}
 $count = ($url != '') ? 0 : -1;
 
 $ipsrc = file_get_contents('https://ipecho.net/plain', false) . ($proxy == '1' ? '&nbsp; ➜ &nbsp;' . $ipprx : '');
 $ipdst = gethostbyname(parse_url($url, PHP_URL_HOST));
 $ipinfo = ' | &nbsp;&nbsp;&nbsp;'  . $ipsrc . '&nbsp; ➜ &nbsp;' . $ipdst;
 
-$resp = get_json_feed($url, false, $proxy, $ipprx);
+$resp = get_json_feed($url, $proxy, $ipprx);
 $json = $resp['json'];
 $count = $resp['count'];
 $msg = $resp['msg'];
@@ -40,7 +42,7 @@ $err = $resp['error'];
   </style>
   <script>
     window.onload = function() {
-      history.pushState({}, null, unescape(location.href.replace('&ipprx=', '')));
+      history.pushState({}, null, unescape(location.href).replace(/[\?&]ipprx=$/, '').replace(/[\?&]url=$/i, ''));
     }
 
     function proxyClick() {
@@ -84,16 +86,17 @@ $err = $resp['error'];
               <input style="display:inline-block; width:185px;" type=" text" id="ipprx" name="ipprx" class="form-control" value="<?php echo $ipprx; ?>" placeholder="ipaddr:port">
             </div>
           </form>
-          <?php if ($count > 0) {
+           <?php 
+          if ($count > 0) {
             echo '<div class="alert alert-success" style="font-weight:500; font-size:17px">The feed is <b>valid</b> and returned <b>' . $count . '</b> meetings</div>';
             echo '<div class="lead" style="font-size:13px; margin:-10px 0 5px 0; line-height:1.1em">' . $url . $ipinfo . '</div>';
             echo '<pre id="output"><code class="language-json">' . print_r($json, true) . '</code></pre>';
-          } else if ($count == 0) {
+          } 
+          else if ($count == 0) {
             echo '<div class="alert alert-danger" style="font-weight:500; font-size:17px">' . $msg . $ipinfo . '</div>';
             echo '<div class="lead" style="font-size:13px; margin:-10px 0 5px 0; line-height:1.1em">' . $url . '</div>';
             echo '<pre id="output"><code class="language-html">' . print_r($err, true) . '</code></pre>';
           } ?>
-        </div>
       </div>
     </div>
   </main>
