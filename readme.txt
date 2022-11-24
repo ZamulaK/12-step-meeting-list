@@ -3,7 +3,7 @@ Contributors: Code for Recovery
 Requires at least: 3.2
 Requires PHP: 5.6
 Tested up to: 6.0
-Stable tag: 3.14.6
+Stable tag: 3.14.7
 
 This plugin helps twelve step recovery programs list their meetings. It standardizes addresses, and displays results in a searchable list and map.
 
@@ -235,10 +235,7 @@ Sure. Try adding this code to your theme's functions.php:
 Also check out our [One Page Meeting List](https://github.com/code4recovery/one-page-meeting-list) theme.
 
 = Can I use this plugin to list telephone meetings or other meetings without a fixed location? =
-No, there's not a good way to do this at this time. All meetings currently need to have a geographic location.
-
-Some sites have used a general geographic area, such as a city name, but this isn't a very good solution, because a map
-pin will still show up for these meetings and people will try to get directions to them.
+Yes, but you will need to enter an approximate location. To do this simply enter the city and state or province of the general geographic location of the meeting into the address field.
 
 = Can I change the URL of the meetings list? =
 Yes, try setting the $tsml_slug variable in your functions.php.
@@ -249,6 +246,11 @@ You may set it to false to hide the public meeting finder altogether.
 
 To apply these changes, you must go to Settings > Permalinks and click "Save Changes"
 
+= Can I update the $tsml_slug to be appended after the site url instead of the blog url identified in permalinks structure
+Yes, you can use the following filter to change the with_front configuration from true to false
+
+	add_filter( 'tsml_meeting_with_front', '__return_false');
+
 == Screenshots ==
 
 1. Meeting list page
@@ -258,6 +260,10 @@ To apply these changes, you must go to Settings > Permalinks and click "Save Cha
 1. Edit location
 
 == Changelog ==
+
+= 3.14.7 =
+* Fix directions button on mobile
+* Fix TSML-UI data loading on GoDaddy CDN
 
 = 3.14.6 =
 * Add href link to meeting name for change detection
