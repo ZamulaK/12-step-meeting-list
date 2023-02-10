@@ -7,6 +7,47 @@ add_action('wp_ajax_tsml_delete', function () {
 	die('deleted');
 });
 
+//debug info
+add_action('wp_ajax_tsml_info', 'tsml_ajax_info');
+add_action('wp_ajax_nopriv_tsml_info', 'tsml_ajax_info');
+function tsml_ajax_info()
+{
+	global $tsml_sharing, $tsml_program, $tsml_data_sources, $tsml_google_maps_key, $tsml_mapbox_key, $tsml_sharing_keys,
+		$tsml_contact_display, $tsml_cache_writable, $tsml_feedback_addresses, $tsml_user_interface, $tsml_notification_addresses,
+		$tsml_google_geocoding_key;
+
+	$theme = wp_get_theme();
+
+	wp_send_json([
+		'language' => get_bloginfo('language'),
+		'log' => array_slice(get_option('tsml_log', []), 0, 25), //limit to 25 events
+		'plugins' => array_map(function ($key) {
+			return explode('/', $key)[0];
+		}, array_keys(get_plugins())),
+		'settings' => [
+			'cache_writable' => $tsml_cache_writable,
+			'contact_display' => $tsml_contact_display,
+			'data_source_count' => count($tsml_data_sources),
+			'feedback_addresses' => count($tsml_feedback_addresses),
+			'has_google_geocoding_key' => !!$tsml_google_geocoding_key,
+			'has_google_maps_key' => !!$tsml_google_maps_key,
+			'has_mapbox_key' => !!$tsml_mapbox_key,
+			'notification_addresses_count' => count($tsml_notification_addresses),
+			'program' => strToUpper($tsml_program),
+			'sharing' => $tsml_sharing,
+			'sharing_keys_count' => count($tsml_sharing_keys),
+			'user_interface' => $tsml_user_interface,
+		],
+		'theme' => $theme->get_stylesheet(),
+		'theme_parent' => $theme->exists() && $theme->parent() ? $theme->parent()->get_stylesheet() : null,
+		'timezone' => wp_timezone_string(),
+		'versions' => [
+			'php' => phpversion(),
+			'tsml' => TSML_VERSION,
+			'wordpress' => get_bloginfo('version'),
+		],
+	]);
+}
 
 //ajax for the search typeahead and the location typeahead on the meeting edit page
 add_action('wp_ajax_tsml_locations', 'tsml_ajax_locations');
@@ -41,54 +82,46 @@ function tsml_ajax_groups()
 	$results = [];
 	foreach ($groups as $group) {
 		$group_custom = get_post_meta($group->ID);
-		$results[] = [
+
+		//basic group info
+		$result = [
 			'value'				=> $group->post_title,
 			'website'			=> @$group_custom['website'][0],
 			'website_2'			=> @$group_custom['website_2'][0],
 			'email'				=> @$group_custom['email'][0],
 			'phone'				=> @$group_custom['phone'][0],
 			'mailing_address'	=> @$group_custom['mailing_address'][0],
-			'contact_1_name'	=> @$group_custom['contact_1_name'][0],
-			'contact_1_email'	=> @$group_custom['contact_1_email'][0],
-			'contact_1_phone'	=> @$group_custom['contact_1_phone'][0],
-			'contact_2_name'	=> @$group_custom['contact_2_name'][0],
-			'contact_2_email'	=> @$group_custom['contact_2_email'][0],
-			'contact_2_phone'	=> @$group_custom['contact_2_phone'][0],
-			'contact_3_name'	=> @$group_custom['contact_3_name'][0],
-			'contact_3_email'	=> @$group_custom['contact_3_email'][0],
-			'contact_3_phone'	=> @$group_custom['contact_3_phone'][0],
 			'last_contact'		=> @$group_custom['last_contact'][0],
 			'notes'				=> $group->post_content,
 			'tokens'			=> tsml_string_tokens($group->post_title),
 			'type'				=> 'group',
 		];
+
+		//potentially-private contact info
+		if (is_user_logged_in()) {
+			$result += [
+				'contact_1_name'	=> @$group_custom['contact_1_name'][0],
+				'contact_1_email'	=> @$group_custom['contact_1_email'][0],
+				'contact_1_phone'	=> @$group_custom['contact_1_phone'][0],
+				'contact_2_name'	=> @$group_custom['contact_2_name'][0],
+				'contact_2_email'	=> @$group_custom['contact_2_email'][0],
+				'contact_2_phone'	=> @$group_custom['contact_2_phone'][0],
+				'contact_3_name'	=> @$group_custom['contact_3_name'][0],
+				'contact_3_email'	=> @$group_custom['contact_3_email'][0],
+				'contact_3_phone'	=> @$group_custom['contact_3_phone'][0],
+			];
+		}
+
+		//district
+		if ($district = get_the_terms($group, 'tsml_district')) {
+			$result += [
+				'district' => $district[0]->term_id,
+			];
+		}
+
+		$results[] = $result;
 	}
 	wp_send_json($results);
-}
-
-
-//PDF meeting schedule linked on import & settings
-add_action('wp_ajax_tsml_pdf', 'tsml_ajax_pdf');
-add_action('wp_ajax_nopriv_tsml_pdf', 'tsml_ajax_pdf');
-function tsml_ajax_pdf()
-{
-
-	//include the file, which includes TCPDF
-	include(TSML_PATH . '/includes/pdf.php');
-
-	//create new PDF document
-	$pdf = new TSMLPDF([
-		'margin' => !empty($_GET['margin']) ? floatval($_GET['margin']) : .25,
-		'width' => !empty($_GET['width']) ? floatval($_GET['width']) : 4.25,
-		'height' => !empty($_GET['height']) ? floatval($_GET['height']) : 11,
-	]);
-
-	//send to browser
-	if (!headers_sent()) {
-		$pdf->Output('meeting-schedule.pdf', 'I');
-	}
-
-	exit;
 }
 
 //ajax for the search typeahead
@@ -150,7 +183,7 @@ function tsml_ajax_csv()
 {
 
 	//going to need this later
-	global $tsml_days, $tsml_programs, $tsml_program, $tsml_sharing;
+	global $tsml_days, $tsml_programs, $tsml_program, $tsml_sharing, $tsml_export_columns;
 
 	//security
 	if (($tsml_sharing != 'open') && !is_user_logged_in()) {
@@ -160,57 +193,12 @@ function tsml_ajax_csv()
 	//get data source
 	$meetings = tsml_get_meetings([], false, true);
 
-	//define columns to output, always in English for portability (per Poland NA)
-	$columns = [
-		'time' =>					'Time',
-		'end_time' =>				'End Time',
-		'day' =>					'Day',
-		'name' =>					'Name',
-		'location' =>				'Location',
-		'formatted_address' =>		'Address',
-		'region' =>					'Region',
-		'sub_region' =>				'Sub Region',
-		'types' =>					'Types',
-		'notes' =>					'Notes',
-		'location_notes' =>			'Location Notes',
-		'group' => 					'Group',
-		'district' => 				'District',
-		'sub_district' => 			'Sub District',
-		'website' => 				'Website',
-		'website_2' => 				'Website 2',
-		'mailing_address' =>		'Mailing Address',
-		'venmo' => 					'Venmo',
-		'square' => 				'Square',
-		'paypal' => 				'Paypal',
-		'email' => 					'Email',
-		'phone' => 					'Phone',
-		'group_notes' => 			'Group Notes',
-		'contact_1_name' =>			'Contact 1 Name',
-		'contact_1_email' =>		'Contact 1 Email',
-		'contact_1_phone' =>		'Contact 1 Phone',
-		'contact_2_name' =>			'Contact 2 Name',
-		'contact_2_email' =>		'Contact 2 Email',
-		'contact_2_phone' =>		'Contact 2 Phone',
-		'contact_3_name' =>			'Contact 3 Name',
-		'contact_3_email' =>		'Contact 3 Email',
-		'contact_3_phone' =>		'Contact 3 Phone',
-		'last_contact' => 			'Last Contact',
-		'conference_url' => 		'Conference URL',
-		'conference_url_notes' => 	'Conference URL Notes',
-		'conference_phone' => 		'Conference Phone',
-		'conference_phone_notes' => 'Conference Phone Notes',
-		'author' => 				'Author',
-		'slug' => 					'Slug',
-		'data_source' =>			'Data Source',
-		'updated' =>				'Updated',
-	];
-
 	//helper vars
 	$delimiter = ',';
 	$escape = '"';
 
 	//do header
-	$return = implode($delimiter, array_values($columns)) . PHP_EOL;
+	$return = implode($delimiter, array_values($tsml_export_columns)) . PHP_EOL;
 
 	//get the preferred time format setting
 	$time_format = get_option('time_format');
@@ -218,7 +206,7 @@ function tsml_ajax_csv()
 	//append meetings
 	foreach ($meetings as $meeting) {
 		$line = [];
-		foreach ($columns as $column => $value) {
+		foreach ($tsml_export_columns as $column => $value) {
 			if (in_array($column, ['time', 'end_time'])) {
 				$line[] = empty($meeting[$column]) ? null : date($time_format, strtotime($meeting[$column]));
 			} elseif ($column == 'day') {

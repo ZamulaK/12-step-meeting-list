@@ -22,6 +22,7 @@ add_action('do_meta_boxes', function () {
 add_action('admin_print_scripts-post.php', 'tsml_assets');
 add_action('admin_print_scripts-post-new.php', 'tsml_assets');
 add_action('admin_print_scripts-tsml_meeting_page_import', 'tsml_assets');
+add_action('admin_print_scripts-tsml_meeting_page_settings', 'tsml_assets');
 
 //edit page
 add_action('admin_init', function () {
@@ -29,6 +30,11 @@ add_action('admin_init', function () {
 	// Compares versions and updates databases as needed for upgrades
 	$tsml_version = get_option('tsml_version');
 	if (version_compare($tsml_version, TSML_VERSION, '<')) {
+
+		//if upgrading from less than 3.14.8, delete obsolete geocoding option
+		if (version_compare($tsml_version, '3.14.8', '<')) {
+			delete_option('tsml_geocoding_method');
+		}
 
 		//if upgrading from less than 3.14.7, delete cache
 		if (version_compare($tsml_version, '3.14.7', '<')) {

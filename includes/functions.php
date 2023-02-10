@@ -262,6 +262,7 @@ function tsml_custom_post_types()
 		],
 		'hierarchical' => true,
 		'public' => false,
+		'show_ui' => true,
 	]);
 
 	register_taxonomy('tsml_district', 'tsml_group', [
@@ -283,6 +284,7 @@ function tsml_custom_post_types()
 		],
 		'hierarchical' => true,
 		'public' => false,
+		'show_ui' => true,
 	]);
 
 	register_post_type(
@@ -561,7 +563,7 @@ function tsml_front_page($wp_query)
 //used:		tsml_ajax_import(), tsml_ajax_geocode()
 function tsml_geocode($address)
 {
-	global $tsml_google_overrides, $tsml_google_maps_key, $tsml_geocoding_method;
+	global $tsml_google_overrides;
 
 	//check overrides first before anything
 	if (array_key_exists($address, $tsml_google_overrides)) {
@@ -581,13 +583,7 @@ function tsml_geocode($address)
 		return $addresses[$address];
 	}
 
-	//Set the Google API Key before calling function that finds the address
-	if ($tsml_geocoding_method == 'google_key' && !empty($tsml_google_maps_key)) {
-		$tsml_map_key = $tsml_google_maps_key;
-	} else {
-		$tsml_map_key = 'AIzaSyDm-pU-DlU-WsTkXJPGEVowY2hICRFLNeQ';
-	}
-	$response = tsml_geocode_google($address, $tsml_map_key);
+	$response = tsml_geocode_google($address);
 
 	//Return if the status is error
 	if ($response['status'] == 'error') {
@@ -603,9 +599,9 @@ function tsml_geocode($address)
 }
 
 //function: Call Google for geocoding of the address
-function tsml_geocode_google($address, $tsml_map_key)
+function tsml_geocode_google($address)
 {
-	global $tsml_curl_handle, $tsml_language, $tsml_google_overrides, $tsml_bounds, $tsml_geocoding_method;
+	global $tsml_curl_handle, $tsml_language, $tsml_google_overrides, $tsml_bounds, $tsml_google_geocoding_key;
 
 	// Can't Geocode an empty address
 	if (empty($address)) {
@@ -626,9 +622,12 @@ function tsml_geocode_google($address, $tsml_map_key)
 		]);
 	}
 
+	//user can specify their own geocoding key in functions.php
+	$key = !empty($tsml_google_geocoding_key) ? $tsml_google_geocoding_key : 'AIzaSyDm-pU-DlU-WsTkXJPGEVowY2hICRFLNeQ';
+
 	//start list of options for geocoding request
 	$options = [
-		'key' => $tsml_map_key,
+		'key' => $key,
 		'address' => $address,
 		'language' => $tsml_language,
 	];
@@ -639,20 +638,18 @@ function tsml_geocode_google($address, $tsml_map_key)
 	}
 
 	//send request to google
-	if ($tsml_geocoding_method == 'api_gateway') {
-		curl_setopt($tsml_curl_handle, CURLOPT_URL, 'https://api-gateway.apps.itstechnical.net/api/geocode?' . http_build_query($options));
-	} else {
-		curl_setopt($tsml_curl_handle, CURLOPT_URL, 'https://maps.googleapis.com/maps/api/geocode/json?' . http_build_query($options));
-	}
+	curl_setopt($tsml_curl_handle, CURLOPT_URL, 'https://maps.googleapis.com/maps/api/geocode/json?' . http_build_query($options));
 	curl_setopt($tsml_curl_handle, CURLOPT_RETURNTRANSFER, true);
 
 	$result = curl_exec($tsml_curl_handle);
 
 	//could not connect error
 	if ($result === false) {
+		$error = curl_error($tsml_curl_handle);
+		tsml_log('geocode_connection_error', $error, $address);
 		return [
 			'status' => 'error',
-			'reason' => 'Google could not validate the address <code>' . $address . '</code>. Response was <code>' . curl_error($tsml_curl_handle) . '</code>',
+			'reason' => 'Google could not validate the address <code>' . $address . '</code>. Response was <code>' . $error . '</code>',
 		];
 	}
 
@@ -677,6 +674,7 @@ function tsml_geocode_google($address, $tsml_map_key)
 
 		//if we're still over the limit, stop
 		if ($data->status === 'OVER_QUERY_LIMIT') {
+			tsml_log('geocode_error', 'OVER_QUERY_LIMIT', $address);
 			return [
 				'status' => 'error',
 				'reason' => 'We are over the rate limit for the Google Geocoding API.'
@@ -686,16 +684,16 @@ function tsml_geocode_google($address, $tsml_map_key)
 
 	//if there are no results report it
 	if ($data->status === 'ZERO_RESULTS') {
-		if (empty($result)) {
-			return [
-				'status' => 'error',
-				'reason' => 'Google could not validate the address <code>' . $address . '</code>',
-			];
-		}
+		tsml_log('geocode_error', 'ZERO_RESULTS', $address);
+		return [
+			'status' => 'error',
+			'reason' => 'Google could not validate the address <code>' . $address . '</code>',
+		];
 	}
 
 	//if result is otherwise bad, stop
 	if (($data->status !== 'OK') || empty($data->results[0]->formatted_address)) {
+		tsml_log('geocode_error', $data->status, $address);
 		return [
 			'status' => 'error',
 			'reason' => 'Google gave an unexpected response for address <code>' . $address . '</code>. Response was <pre>' . var_export($data, true) . '</pre>',
@@ -709,8 +707,8 @@ function tsml_geocode_google($address, $tsml_map_key)
 			$response['approximate'] = 'no';
 		}
 	} else {
+		tsml_log('geocode_success', $data->results[0]->formatted_address, $address);
 		//start building response
-		// $myfile = fopen("./newfile.txt", "a") or die("Unable to open file!");
 		$response = [
 			'formatted_address' => $data->results[0]->formatted_address,
 			'latitude' => $data->results[0]->geometry->location->lat,
@@ -944,7 +942,8 @@ function tsml_get_locations()
 			'region' => $region,
 			'sub_region' => $sub_region,
 			'regions' => array_reverse(array_map(function ($region_id) {
-				return get_term($region_id, 'tsml_region')->name;
+				$term = get_term($region_id, 'tsml_region');
+				return !empty($term->name) ? $term->name : null;
 			}, array_merge([$region_id], get_ancestors($region_id, 'tsml_region')))),
 		];
 	}
@@ -1050,19 +1049,20 @@ function tsml_get_meeting($meeting_id = false)
 
 //function: get feedback_url
 //called in tsml_get_meta
-function tsml_feedback_url($post)
+function tsml_feedback_url($meeting)
 {
-	global $tsml_feedback_url;
-	$url = "";
+	global $tsml_export_columns, $tsml_feedback_url;
 
-	if (isset($tsml_feedback_url)) {
-		$id = $post->ID;
-		$slug = $post->post_name;
+	if (empty($tsml_feedback_url)) return;
 
-		$url = $tsml_feedback_url;
+	$url = $tsml_feedback_url;
 
-		$url = str_replace('{{id}}', $id, $url);
-		$url = str_replace('{{slug}}', $slug, $url);
+	foreach ($tsml_export_columns as $key => $heading) {
+		$value = @$meeting[$key];
+		if (is_array($value)) {
+			$value = implode(',', $value);
+		}
+		$url = str_replace('{{' . $key . '}}', urlencode($value), $url);
 	}
 	return $url;
 }
@@ -1119,7 +1119,6 @@ function tsml_get_meetings($arguments = [], $from_cache = true, $full_export = f
 				'time' => isset($meeting_meta[$post->ID]['time']) ? $meeting_meta[$post->ID]['time'] : null,
 				'end_time' => isset($meeting_meta[$post->ID]['end_time']) ? $meeting_meta[$post->ID]['end_time'] : null,
 				'time_formatted' => isset($meeting_meta[$post->ID]['time']) ? tsml_format_time($meeting_meta[$post->ID]['time']) : null,
-				'feedback_url' => tsml_feedback_url($post),
 				'edit_url' => get_edit_post_link($post, ''),
 				'conference_url' => isset($meeting_meta[$post->ID]['conference_url']) ? $meeting_meta[$post->ID]['conference_url'] : null,
 				'conference_url_notes' => isset($meeting_meta[$post->ID]['conference_url_notes']) ? $meeting_meta[$post->ID]['conference_url_notes'] : null,
@@ -1164,6 +1163,11 @@ function tsml_get_meetings($arguments = [], $from_cache = true, $full_export = f
 			// Remove TC when online only meeting has approximate address
 			if (!empty($meeting['types']) && $meeting['attendance_option'] == 'online' && $meeting['approximate'] == 'yes') {
 				$meeting['types'] = array_values(array_diff($meeting['types'], ['TC']));
+			}
+
+			//add feedback_url only if present
+			if ($feedback_url = tsml_feedback_url($meeting)) {
+				$meeting['feedback_url'] = $feedback_url;
 			}
 
 			$meetings[] = $meeting;
@@ -1755,6 +1759,33 @@ function tsml_link($url, $string, $exclude = '', $class = false)
 	if ($class) $return .= ' class="' . $class . '"';
 	$return .= '>' . $string . '</a>';
 	return $return;
+}
+
+//function: add an entry to the activity log
+//$type is something short you can filter by, eg 'geocode_error'
+//$info is the bad result you got back
+//$input is any input that might have contributed to the result
+//used in tsml_ajax_info, tsml_geocode and anywhere else something could go wrong
+function tsml_log($type, $info = null, $input = null)
+{
+	//load
+	$tsml_log = get_option('tsml_log', []);
+
+	//default variables
+	$entry = [
+		'type' => $type,
+		'timestamp' => current_time('mysql'),
+	];
+
+	//optional variables
+	if ($info) $entry['info'] = $info;
+	if ($input) $entry['input'] = $input;
+
+	//prepend to array
+	array_unshift($tsml_log, $entry);
+
+	//save
+	update_option('tsml_log', $tsml_log);
 }
 
 //function: link to meetings page with parameters (added to link dropdown menus for SEO)
