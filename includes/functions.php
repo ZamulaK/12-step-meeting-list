@@ -14,16 +14,7 @@ function tsml_assets()
 {
 	global $post_type, $tsml_street_only, $tsml_programs, $tsml_strings, $tsml_program, $tsml_google_maps_key,
 		$tsml_mapbox_key, $tsml_mapbox_theme, $tsml_distance_units, $tsml_defaults, $tsml_columns, $tsml_nonce;
-
-	// TODO: verify this doesn't cause any other issues
-	$types = [
-		'tsml_meeting',
-		'tsml_location',
-		'tsml_group',
-	];
-	if (isset($post_type) && !in_array($post_type, $types)) {
-		return;
-	}
+	
 	//google maps api
 	if ($tsml_google_maps_key) {
 		wp_enqueue_script('google_maps_api', '//maps.googleapis.com/maps/api/js?key=' . $tsml_google_maps_key);
@@ -225,6 +216,14 @@ function tsml_custom_addresses($custom_overrides)
 {
 	global $tsml_google_overrides;
 	$tsml_google_overrides = array_merge($tsml_google_overrides, $custom_overrides);
+}
+
+//fuction:	define custom type descriptions
+//used:		theme's functions.php
+function tsml_custom_descriptions($descriptions)
+{
+	global $tsml_programs, $tsml_program;
+	$tsml_programs[$tsml_program]['type_descriptions'] = $descriptions;
 }
 
 //fuction:	define custom flags (/men, /women) for your area
@@ -542,6 +541,16 @@ function tsml_format_time_reverse($string)
 {
 	$time_parts = date_parse($string);
 	return sprintf('%02d', $time_parts['hour']) . ':' . sprintf('%02d', $time_parts['minute']);
+}
+
+//function: takes a website URL, eg https://www.groupname.org and returns the domain
+//used:		single-meetings.php
+function tsml_format_domain($url)
+{
+	$parts = parse_url(strtolower($url));
+	if (!$parts) return $url;
+	if (substr($parts['host'], 0, 4) == 'www.') return substr($parts['host'], 4);
+	return $parts['host'];
 }
 
 //function: display meeting list on home page (must be set to a static page)
@@ -941,11 +950,20 @@ function tsml_get_locations()
 			'region_id' => $region_id,
 			'region' => $region,
 			'sub_region' => $sub_region,
-			'regions' => array_reverse(array_map(function ($region_id) {
-				$term = get_term($region_id, 'tsml_region');
-				return !empty($term->name) ? $term->name : null;
-			}, array_merge([$region_id], get_ancestors($region_id, 'tsml_region')))),
 		];
+
+		// regions array eg ['Midwest', 'Illinois', 'Chicago', 'North Side']
+		$regions_array = array_filter(array_map(function ($region_id) {
+			$term = get_term($region_id, 'tsml_region');
+			return !empty($term->name) ? $term->name : null;
+		}, array_merge([$region_id], get_ancestors($region_id, 'tsml_region'))), function ($region) {
+			return !empty($region);
+		});
+
+		// omit key if empty
+		if (count($regions_array)) {
+			$locations[$post->ID]['regions'] = array_reverse($regions_array);
+		}
 	}
 
 	return $locations;
@@ -1125,6 +1143,7 @@ function tsml_get_meetings($arguments = [], $from_cache = true, $full_export = f
 				'conference_phone' => isset($meeting_meta[$post->ID]['conference_phone']) ? $meeting_meta[$post->ID]['conference_phone'] : null,
 				'conference_phone_notes' => isset($meeting_meta[$post->ID]['conference_phone_notes']) ? $meeting_meta[$post->ID]['conference_phone_notes'] : null,
 				'types' => empty($meeting_meta[$post->ID]['types']) ? [] : array_values(unserialize($meeting_meta[$post->ID]['types'])),
+				'author' => get_the_author_meta('user_login', $post->post_author)
 			], $locations[$post->post_parent]);
 
 			// Include the data source when doing a full export
@@ -1524,8 +1543,8 @@ function tsml_import_buffer_set($meetings, $data_source_url = null, $data_source
 		$meetings[$i]['types'] = $unused_types = [];
 		foreach ($types as $type) {
 			$upper_type = trim(strtoupper($type));
-			if (array_key_exists($upper_type, $upper_types)) {
-				$meetings[$i]['types'][] = $upper_type;
+			if (in_array($upper_type, array_map('strtoupper', array_keys($upper_types)))) {
+				$meetings[$i]['types'][] = $type;
 			} elseif (in_array($upper_type, array_values($upper_types))) {
 				$meetings[$i]['types'][] = array_search($upper_type, $upper_types);
 			} else {
